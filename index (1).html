@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title> FULL AUTO</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Poppins:wght@600&display=swap" rel="stylesheet">
+
+<style>
+/* --- CORE STYLES --- */
+*{margin:0;padding:0;box-sizing:border-box;font-family:Poppins}
+body{background:#000;overflow:hidden;width:100vw;height:100vh}
+
+/* WIDGET (FLOATING) */
+#widget{
+    position:fixed; top:100px; right:20px; width:180px;
+    background:rgba(10,5,5,.95);
+    border:2px solid #ff0044;
+    border-radius:12px; padding:10px;
+    z-index:5000; cursor:move; text-align:center;
+    box-shadow: 0 0 20px rgba(255, 0, 68, 0.4);
+}
+
+.head{font-size:9px;color:#aaa;font-weight:bold;margin-bottom:5px;border-bottom:1px solid #333;padding-bottom:3px;}
+
+/* পিরিয়ড ফন্ট সাইজ একটু ছোট করা হয়েছে যাতে পুরো নাম্বার ধরে */
+.period{font-size:9px;color:#fff;font-family:Orbitron; letter-spacing: 0.5px;}
+
+.res{font-size:34px;font-family:Orbitron;font-weight:900;margin:5px 0;}
+.big{color:#00ff88;text-shadow:0 0 15px #00ff88}
+.small{color:#ff0044;text-shadow:0 0 15px #ff0044}
+.wait{color:#666; font-size:24px; animation:blink 0.8s infinite;}
+
+.stats{display:flex;justify-content:space-between;font-size:10px;font-weight:bold;margin-top:8px;background:#111;padding:4px;border-radius:4px;}
+.win{color:#00ff88}
+.loss{color:#ff0044}
+
+/* FULL SCREEN RESULT OVERLAY */
+#resultOverlay{
+    position:fixed; inset:0; display:none;
+    align-items:center; justify-content:center;
+    z-index:10000; font-family:Orbitron; font-size:45px; font-weight:900;
+    backdrop-filter: blur(5px);
+    text-align: center;
+}
+#resultOverlay.win{
+    color:#00ff88; text-shadow:0 0 40px #00ff88;
+    background: rgba(0, 50, 0, 0.8);
+}
+#resultOverlay.loss{
+    color:#ff0044; text-shadow:0 0 40px #ff0044;
+    background: rgba(50, 0, 0, 0.8);
+}
+
+.sub-text { font-size: 16px; color: #fff; display: block; margin-top: 10px; font-family: Poppins; }
+
+@keyframes blink { 50% { opacity: 0.5; } }
+</style>
+</head>
+
+<body>
+
+<!-- হ্যাক উইজেট -->
+<div id="widget">
+  <div class="head">AUTO AI</div>
+  <div class="period">P: <span id="pNum">Loading...</span></div>
+  
+  <div id="signal" class="res wait">--</div>
+  
+  <div class="stats">
+    <span class="win">WIN: <span id="w">0</span></span>
+    <span class="loss">LOSS: <span id="l">0</span></span>
+  </div>
+  <div style="font-size:9px; color:#aaa; margin-top:4px;" id="statusMsg">SYSTEM ACTIVE</div>
+</div>
+
+<!-- রেজাল্ট পপআপ -->
+<div id="resultOverlay"></div>
+
+<script>
+// --- ভেরিয়েবল ---
+let myPrediction = "";
+let wins = 0, loss = 0;
+let bias = 0; 
+
+// --- API থেকে রেজাল্ট আনা ---
+async function fetchResult(){
+  try{
+    // রিয়েল সার্ভার থেকে ডাটা নিচ্ছে
+    const r = await fetch("https://draw.ar-lottery01.com/WinGo/WinGo_30S/GetHistoryIssuePage.json?ts="+Date.now());
+    const j = await r.json();
+    return j.data.list[0];
+  }catch{return null}
+}
+
+// --- পপআপ দেখানো ---
+function show(type){
+  const o = document.getElementById('resultOverlay');
+  o.style.display = "flex";
+  o.className = type;
+  
+  if(type === "win"){
+      o.innerHTML = "🙂 YOU WIN 💥<br><span class='sub-text'>Perfect Prediction!</span>";
+  } else {
+      o.innerHTML = "😅 YOU LOSS 🥺<br><span class='sub-text'>Use 3X Plan Next!</span>";
+  }
+  
+  // ২ সেকেন্ড পর বন্ধ হবে
+  setTimeout(() => o.style.display = "none", 2000);
+}
+
+// --- মেইন লজিক রান করা ---
+function run(){
+    setInterval(async()=>{
+      const sec = new Date().getSeconds();
+      
+      // প্রতি পিরিয়ডের শেষে (২৮ তম সেকেন্ডে) চেক করবে
+      if(30 - (sec % 30) !== 28) return;
+
+      const d = await fetchResult();
+      if(!d) return;
+
+      const num = parseInt(d.number);
+      const real = num >= 5 ? "BIG" : "SMALL";
+
+      // উইন/লস চেক
+      if(myPrediction){
+        if(myPrediction === real){
+          wins++; 
+          bias = Math.max(bias - 1, -3); 
+          show("win");
+        } else {
+          loss++; 
+          bias = Math.min(bias + 1, 3); 
+          show("loss");
+        }
+      }
+
+      // 🔥 STRONG LOGIC
+      const base = (num + parseInt(d.issueNumber.slice(-3))) % 10;
+      let score = base + bias;
+      myPrediction = score >= 5 ? "BIG" : "SMALL";
+
+      // ডিসপ্লে আপডেট
+      const sigEl = document.getElementById('signal');
+      sigEl.innerText = myPrediction;
+      sigEl.className = "res " + (myPrediction === "BIG" ? "big" : "small");
+      
+      document.getElementById('w').innerText = wins;
+      document.getElementById('l').innerText = loss;
+      
+      // ফুল পিরিয়ড আপডেট (Current + 1)
+      const nextPeriod = (BigInt(d.issueNumber) + 1n).toString();
+      document.getElementById('pNum').innerText = nextPeriod;
+      document.getElementById('statusMsg').innerText = "NEXT: " + nextPeriod.slice(-4);
+
+    }, 1000);
+}
+
+// অটোমেটিক শুরু
+run();
+
+// --- ড্র্যাগ ফাংশন ---
+const el = document.getElementById('widget');
+let isDown = false, offX, offY;
+
+el.addEventListener('touchstart', e => {
+    isDown = true;
+    offX = e.touches[0].clientX - el.offsetLeft;
+    offY = e.touches[0].clientY - el.offsetTop;
+});
+document.addEventListener('touchend', () => isDown = false);
+document.addEventListener('touchmove', e => {
+    if(isDown) {
+        e.preventDefault();
+        el.style.left = (e.touches[0].clientX - offX) + 'px';
+        el.style.top = (e.touches[0].clientY - offY) + 'px';
+    }
+}, {passive:false});
+
+el.addEventListener('mousedown', e => { isDown=true; offX=e.clientX-el.offsetLeft; offY=e.clientY-el.offsetTop; });
+document.addEventListener('mouseup', () => isDown=false);
+document.addEventListener('mousemove', e => { if(isDown) { el.style.left=(e.clientX-offX)+'px'; el.style.top=(e.clientY-offY)+'px'; }});
+
+</script>
+
+</body>
+</html>
